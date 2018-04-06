@@ -9,6 +9,7 @@
 The module allows to proceed inventory adjustments via barcode scanning
 
 By using a barcode scanner you may:
+
 * Add products on inventory adjustment form
 * Operate inventories like *Create*, *Edit*, *Validate*, etc
 * Select a location on an inventory creating
