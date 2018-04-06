@@ -30,18 +30,16 @@ a new line with the location *WH/Stock* will be added.
 Inventory Form Barcode List
 ---------------------------
 
-The following operations on the *Inventory Adjustment* may be done via barcode scanning:
+The following operations on the *Inventory Adjustment* form may be done via barcode scanning:
 
-  Barcodes      -     Operations
+* ``[Start Inventory]``
+* ``[Validate Inventory]``
+* ``[Save]`` the inventory
+* ``[Create]`` new inventory
+* ``[Edit]`` inventory
+* ``[Discard]`` changes
+* ``[Cancel Inventory]``
+* Next inventory in a row
+* Previous inventory in a row
 
-* O-CMD.INV     - ``[Start Inventory]``
-* O-CMD.VALID   - ``[Validate Inventory]``
-* O-CMD.SAVE    - ``[Save]`` the inventory
-
-* O-CMD.NEW     - ``[Create]`` new inventory
-* O-CMD.EDIT    - ``[Edit]`` inventory
-
-* O-CMD.DISCARD - ``[Discard]`` changes
-* O-CMD.CANCEL  - ``[Cancel Inventory]``
-* O-CMD.NEXT    - Next inventory in a row
-* O-CMD.PREV    - Previous inventory in a row
+You can find barcodes for previous operations in file *Barcode List.pdf* in the module repository.
