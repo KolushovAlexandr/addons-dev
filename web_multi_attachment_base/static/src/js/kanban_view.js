@@ -6,6 +6,7 @@ odoo.define('kanban_view', function (require) {
     var KanbanController = require('web.KanbanController');
     var KanbanRecord = require('web.KanbanRecord');
     var FormView = require('web.FormView');
+    var widgetRegistry = require('web.widget_registry');
 
     KanbanView.include({
         init: function () {
@@ -87,8 +88,23 @@ odoo.define('kanban_view', function (require) {
             var self = this;
             var parent = this.getParent();
             var grand_parent = parent.getParent();
-            var field_widget = grand_parent.record.fieldsInfo.form.product_image_ids.Widget
+            var field_widget = grand_parent.record.fieldsInfo.form.product_image_ids.Widget;
+            var field_context = grand_parent.record.data.product_image_ids.getContext();
+            var custom_field_context = false;
+            var field_values = _.map(values, function(v){
+                custom_field_context = field_context;
+                custom_field_context.data = v;
+                return custom_field_context;
+            })
+            console.log(widgetRegistry);
+            var form = grand_parent.getParent().getParent();
+            var wid = form.initialState.fieldsInfo.form.product_image_ids.Widget;
             grand_parent.record.data.product_image_ids.data.concat(values);
+            var stat = _.clone(parent.state);
+            stat.data = grand_parent.record.data.product_image_ids.data.concat(field_values);
+            var pre_form = grand_parent.getParent();
+            var widik = pre_form._renderFieldWidget(grand_parent, form.initialState, {});
+//            parent._setState(stat)
             this.render();
             this.save_all_records_to_form_view();
         },
