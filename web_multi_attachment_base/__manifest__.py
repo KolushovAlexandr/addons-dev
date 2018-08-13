@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # Copyright 2018 Dinar Gabbasov <https://it-projects.info/team/GabbasovDinar>
+# Copyright 2018 Kolushov Alexandr <https://it-projects.info/team/KolushovAlexandr>
 # License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 {
-    "name": """Upload Multiple Attachments at Once""",
+    "name": """Upload Multiple Image Attachments at Once""",
     "summary": """Upload multiple images at once""",
     "category": "Extra Tools",
     # "live_test_url": "",

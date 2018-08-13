@@ -1,3 +1,6 @@
+/*  Copyright 2018 Dinar Gabbasov <https://it-projects.info/team/GabbasovDinar>
+    Copyright 2018 Kolushov Alexandr <https://it-projects.info/team/KolushovAlexandr>
+    License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).*/
 odoo.define('kanban_view', function (require) {
     "use strict";
 
@@ -9,21 +12,6 @@ odoo.define('kanban_view', function (require) {
     var rpc = require('web.rpc');
     var _t = core._t;
 
-var FormView = require('web.FormView');
-    FormView.include({
-        init: function () {
-            this._super.apply(this, arguments);
-            var product_images_fieldInfo = this.loadParams.fieldsInfo.form.product_image_ids;
-            var product_images_field = this.loadParams.fields.product_image_ids;
-            if (this.view && this.view.arch && this.view.arch.attrs.drop_attachments_field) {
-                this.drop_attachments = {};
-                this.drop_attachments.model = product_images_field.relation;
-                this.drop_attachments.field = product_images_field.relation_field;
-                this.drop_attachments.widget = product_images_fieldInfo.Widget;
-            }
-            console.log(this)
-        },
-    });
 
     var FieldMultiFiles = AbstractField.extend({
         template: "FieldBinaryFileUploader",

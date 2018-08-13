@@ -2,9 +2,9 @@
    :target: https://www.gnu.org/licenses/lgpl
    :alt: License: LGPL-3
 
-=====================================
- Upload Multiple Attachments at Once
-=====================================
+============================================
+ Upload Multiple Images For Product at Once
+============================================
 
 The module allows to upload multiple images at once
 
@@ -23,7 +23,7 @@ Maintainers
 -----------
 * `IT-Projects LLC <https://it-projects.info>`__
 
-      To get a guaranteed support you are kindly requested to purchase the module at `odoo apps store <https://apps.odoo.com/apps/modules/11.0/website_sale_attachments/>`__.
+      To get a guaranteed support you are kindly requested to purchase the module at `odoo apps store <https://apps.odoo.com/apps/modules/11.0/multi_attachment_product_image/>`__.
 
       Thank you for understanding!
 
@@ -32,9 +32,9 @@ Maintainers
 Further information
 ===================
 
-Demo: http://runbot.it-projects.info/demo/misc-addons/11.0
+Demo: http://runbot.it-projects.info/demo/website-addons/11.0
 
-HTML Description: https://apps.odoo.com/apps/modules/11.0/website_sale_attachments/
+HTML Description: https://apps.odoo.com/apps/modules/11.0/multi_attachment_product_image/
 
 Usage instructions: `<doc/index.rst>`_
 
