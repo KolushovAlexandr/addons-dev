@@ -508,6 +508,10 @@ ProductScreenWidget.include({
         var self = this;
         this._super();
         this.$('.fetch-orders').click(function () {
+            if (!self.pos.config.sale_order_cashier_selection){
+                self.gui.show_screen('sale_orders_list');
+                return;
+            }
             self.gui.select_user({
                 'security':     true,
                 'current_user': self.pos.get_cashier(),
@@ -519,6 +523,10 @@ ProductScreenWidget.include({
             });
         });
         this.$('.fetch-invoices').click(function () {
+            if (!self.pos.config.invoice_cashier_selection){
+                self.gui.show_screen('invoices_list');
+                return;
+            }
             self.gui.select_user({
                 'security':     true,
                 'current_user': self.pos.get_cashier(),

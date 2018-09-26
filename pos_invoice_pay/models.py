@@ -139,3 +139,14 @@ class SaleOrder(models.Model):
             }
             res.append(line)
         return res
+
+
+class PosConfig(models.Model):
+    _inherit = 'pos.config'
+
+    invoice_cashier_selection = fields.Boolean(string='Select Invoice Cashier',
+                                               help='Ask for a cashier when fetch invoices',
+                                               defaul=True)
+    sale_order_cashier_selection = fields.Boolean(string='Select Sale Order Cashier',
+                                                  help='Ask for a cashier when fetch orders',
+                                                  defaul=True)
