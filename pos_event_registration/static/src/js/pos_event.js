@@ -9,6 +9,7 @@ odoo.define('pos_event_registration.pos_event', function (require) {
 var Session = require('web.session');
 var screens = require('point_of_sale.screens');
 var models = require('point_of_sale.models');
+var devices = require('point_of_sale.devices');
 var gui = require('point_of_sale.gui');
 var core = require('web.core');
 var PosDB = require('point_of_sale.DB');
@@ -16,6 +17,7 @@ var Model = require('web.DataModel');
 
 var QWeb = core.qweb;
 var _t = core._t;
+
 
 models.load_models({
     model: 'event.event',
@@ -31,10 +33,9 @@ models.load_models({
         }
     },
 });
-
 models.load_models({
     model: 'event.registration',
-    fields: ['id', 'name', 'partner_id', 'date_open', 'state', 'email'],
+    fields: ['id', 'name', 'partner_id', 'date_open', 'state', 'email', 'state', 'event_ticket_id'],
     domain: function(self){
         return [['event_id', '=', self.config.pos_event[0]]];
     },
@@ -48,7 +49,6 @@ models.load_models({
         });
     },
 });
-
 models.load_models({
     model: 'event.event.ticket',
     fields: ['id', 'name', 'event_id', 'product_id', 'registration_ids', 'price'],
@@ -57,12 +57,15 @@ models.load_models({
     },
     loaded: function(self, tickets){
         self.db.tickets = tickets;
+        self.db.tickets_by_id = [];
+        _.each(tickets, function(t) {
+            self.db.tickets_by_id[t.id] = t;
+        });
         self.ticket_products = _.map(posmodel.db.tickets, function(t) {
             return t.product_id[0]
         });
     },
 });
-
 models.load_models({
     model:  'product.product',
     fields: ['display_name', 'list_price','price','pos_categ_id', 'taxes_id', 'barcode', 'default_code',
@@ -79,6 +82,18 @@ models.load_models({
         self.db.add_products(products);
     },
 });
+
+
+devices.BarcodeReader.include({
+    scan: function(code){
+        if (!posmodel.gui.current_screen.attendee_screen) {
+            this._super(code);
+        }
+        var parsed_result = this.barcode_parser.parse_barcode(code);
+        this.pos.gui.screen_instances.attendeelist.barcode_attendee_action();
+        console.log(parsed_result);
+    },
+})
 
 var PosModelSuper = models.PosModel;
 models.PosModel = models.PosModel.extend({
@@ -104,6 +119,15 @@ models.PosModel = models.PosModel.extend({
 });
 
 PosDB.include({
+
+    /* TICKETS */
+
+    get_ticket_by_id: function(id){
+        return this.tickets[id];
+    },
+
+    /* ATTENDEE */
+
     get_attendees_sorted: function(max_count){
         max_count = max_count ? Math.min(this.attendee_sorted.length, max_count) : this.attendee_sorted.length;
         var attendees = [];
@@ -128,10 +152,6 @@ PosDB.include({
                     this.attendee_by_id[attendee.id] &&
                     new Date(local_attendee_date).getTime() + 1000 >=
                     new Date(dist_attendee_date).getTime() ) {
-                // FIXME: The write_date is stored with milisec precision in the database
-                // but the dates we get back are only precise to the second. This means when
-                // you read attendees modified strictly after time X, you get back attendees that were
-                // modified X - 1 sec ago. 
                 continue;
             } else if ( new_write_date < attendee.write_date ) { 
                 new_write_date  = attendee.write_date;
@@ -203,19 +223,30 @@ PosDB.include({
 
 });
 
+
 /*--------------------------------------*\
- |         THE ATTENDEE LIST              |
+ |           ATTENDEE LIST              |
 \*======================================*/
 
 var AttendeeListScreenWidget = screens.ScreenWidget.extend({
     template: 'AttendeeListScreenWidget',
+
+    auto_back: true,
+    attendee_screen: true,
 
     init: function(parent, options){
         this._super(parent, options);
         this.attendee_cache = new screens.DomCache();
     },
 
-    auto_back: true,
+
+    get_attendee: function() {
+        return this.current_attendee;
+    },
+    set_attendee: function(attendee) {
+        this.current_attendee = attendee;
+        return attendee
+    },
 
     show: function(){
         var self = this;
@@ -223,7 +254,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 
         this.renderElement();
         this.details_visible = false;
-        this.old_client = this.pos.get_order().get_client();
+        this.old_client = this.get_attendee();
 
         this.$('.back').click(function(){
             self.gui.back();
@@ -273,11 +304,16 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         this.$('.searchbox .search-clear').click(function(){
             self.clear_search();
         });
+
+        this.pos.barcode_reader.set_action_callback({
+            'attendee': _.bind(self.barcode_attendee_action, self),
+        });
     },
     hide: function () {
         this._super();
         this.new_client = null;
     },
+
     barcode_attendee_action: function(code){
         if (this.editing_client) {
             this.$('.detail.barcode').val(code.code);
@@ -287,6 +323,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             this.display_client_details('show', attendee);
         }
     },
+
     perform_search: function(query, associate_result){
         var customers;
         if(query){
@@ -560,7 +597,12 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 
         if(visibility === 'show'){
             contents.empty();
-            contents.append($(QWeb.render('AttendeeDetails',{widget:this,attendee:attendee})));
+            var related_partner = this.pos.db.get_partner_by_id(attendee.partner_id[0]);
+            contents.append($(QWeb.render('AttendeeDetails',{
+                widget:this,
+                attendee:attendee,
+                partner: related_partner,
+            })));
 
             var new_height   = contents.height();
 

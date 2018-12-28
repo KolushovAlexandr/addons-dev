@@ -45,8 +45,8 @@
                         <input class='detail client-address-city'   name='city'         t-att-value='attendee.city || ""' placeholder='City'></input>
                     </div>
                     <div class='client-detail'>
-                        <span class='label'>Postcode</span>
-                        <input class='detail client-address-zip'    name='zip'          t-att-value='attendee.zip || ""' placeholder='ZIP'></input>
+                        <span class='label'>Phone</span>
+                        <input class='detail client-phone'  name='phone'    type='tel'      t-att-value='attendee.phone || ""'></input>
                     </div>
                     <div class='client-detail'>
                         <span class='label'>Country</span>
@@ -63,19 +63,26 @@
                 <div class='client-details-right'>
                     <div class='client-detail'>
                         <span class='label'>Email</span>
-                        <input class='detail client-email'  name='email'    type='email'    t-att-value='attendee.email || ""'></input>
+                        <input class='detail client-email' name='email' type='email' t-att-value='attendee.email || ""'></input>
                     </div>
                     <div class='client-detail'>
-                        <span class='label'>Phone</span>
-                        <input class='detail client-phone'  name='phone'    type='tel'      t-att-value='attendee.phone || ""'></input>
+                        <span class='label'>Ticket Barcode</span>
+                        <input class='detail barcode' name='barcode' t-att-value='attendee.barcode || ""'></input>
                     </div>
                     <div class='client-detail'>
-                        <span class='label'>Barcode</span>
-                        <input class='detail barcode'       name='barcode'    t-att-value='attendee.barcode || ""'></input>
+                        <span class='label'>Ticket</span>
+                        <select class='detail client-address-country needsclick' name='event_ticket_id'>
+                            <option value=''>None</option>
+                            <t t-foreach='widget.pos.db.tickets' t-as='ticket'>
+                                <option t-att-value='ticket.id' t-att-selected="attendee.event_ticket_id ? ((ticket.id === attendee.event_ticket_id[0]) ? true : undefined) : undefined">
+                                    <t t-esc='ticket.name'/>
+                                </option>
+                            </t>
+                        </select>
                     </div>
                     <div class='client-detail'>
-                        <span class='label'>Tax ID</span>
-                        <input class='detail vat'           name='vat'     t-att-value='attendee.vat || ""'></input>
+                        <span class='label'>RFID</span>
+                        <input class='detail barcode' name='rfid' t-att-value='attendee.rfid || ""'></input>
                     </div>
                 </div>
             </div>
@@ -95,10 +102,11 @@
                 <div class='client-details-left'>
                     <div class='client-detail'>
                         <span class='label'>Address</span>
-                        <t t-if='attendee.address'>
-                            <span class='detail client-address'><t t-esc='attendee.address' /></span>
+                        <t t-set="address" t-value="attendee.address || (partner &amp;&amp; partner.address)"/>
+                        <t t-if='address'>
+                            <span class='detail client-address'><t t-esc='address' /></span>
                         </t>
-                        <t t-if='!attendee.address'>
+                        <t t-if='!address'>
                             <span class='detail client-address empty'>N/A</span>
                         </t>
                     </div>
@@ -112,18 +120,19 @@
                         </t>
                     </div>
                     <div class='client-detail'>
+                        <t t-set="phone" t-value="attendee.phone || (partner &amp;&amp; partner.phone)"/>
                         <span class='label'>Phone</span>
-                        <t t-if='attendee.phone'>
-                            <span class='detail client-phone'><t t-esc='attendee.phone' /></span>
+                        <t t-if='phone'>
+                            <span class='detail client-phone'><t t-esc='phone' /></span>
                         </t>
-                        <t t-if='!attendee.phone'>
+                        <t t-if='!phone'>
                             <span class='detail client-phone empty'>N/A</span>
                         </t>
                     </div>
                 </div>
                 <div class='client-details-right'>
                     <div class='client-detail'>
-                        <span class='label'>Barcode</span>
+                        <span class='label'>Ticket Barcode</span>
                         <t t-if='attendee.barcode'>
                             <span class='detail client-id'><t t-esc='attendee.barcode'/></span>
                         </t>
@@ -141,12 +150,21 @@
                         </t>
                     </div>
                     <div class='client-detail'>
-                        <span class='label'>Tax ID</span>
-                        <t t-if='attendee.vat'>
-                            <span class='detail vat'><t t-esc='attendee.vat'/></span>
+                        <span class='label'>Ticket</span>
+                        <t t-if='attendee.event_ticket_id'>
+                            <span class='detail client-phone'><t t-esc='attendee.event_ticket_id[1]' /></span>
                         </t>
-                        <t t-if='!attendee.vat'>
-                            <span class='detail vat empty'>N/A</span>
+                        <t t-if='!attendee.event_ticket_id'>
+                            <span class='detail client-phone empty'>N/A</span>
+                        </t>
+                    </div>
+                    <div class='client-detail'>
+                        <span class='label'>State</span>
+                        <t t-if='attendee.state'>
+                            <span class='detail client-phone'><t t-esc='attendee.state' /></span>
+                        </t>
+                        <t t-if='!attendee.state'>
+                            <span class='detail client-phone empty'>N/A</span>
                         </t>
                     </div>
                 </div>
