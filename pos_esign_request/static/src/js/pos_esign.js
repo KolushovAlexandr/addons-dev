@@ -27,7 +27,7 @@ screens.PaymentScreenWidget.include({
         var next_button = $('.payment-screen .top-content .button.next').hide();
 
         next_button.show();
-        if (this.pos.config.ask_for_sign && !this.pos.get_client().sign_attachment_id) {
+        if (this.pos.config.ask_for_sign && ( !this.pos.get_client() || !this.pos.get_client().sign_attachment_id )) {
             $('.payment-screen .top-content .button.next').hide();
         }
 

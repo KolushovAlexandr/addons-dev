@@ -12,7 +12,7 @@ class PosConfig(models.Model):
     _inherit = 'pos.config'
 
     ask_for_sign = fields.Boolean(string='Ask To Sign', default=False)
-    terms_to_sign = fields.Char(string='Event Terms')
+    terms_to_sign = fields.Char(string='Terms & Conditions')
 
     @api.model
     def send_to_esign_tab(self, channel_name, sub_channel, data):
