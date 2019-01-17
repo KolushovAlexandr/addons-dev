@@ -17,13 +17,14 @@
     # "currency": "EUR",
 
     "depends": [
-        "point_of_sale",
+        "pos_longpolling",
         "event_sale",
     ],
     "external_dependencies": {"python": [], "bin": []},
     "data": [
         "views/assets.xml",
         "views/views.xml",
+        "views/bracelet_views.xml",
     ],
     "demo": [
     ],

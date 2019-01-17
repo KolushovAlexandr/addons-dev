@@ -6,6 +6,7 @@
     <template id="assets" inherit_id="point_of_sale.assets">
         <xpath expr="." position="inside">
             <script type="text/javascript" src="/pos_event_registration/static/src/js/pos_event.js"></script>
+            <link rel="stylesheet" href='/pos_event_registration/static/src/css/event.css'/>
         </xpath>
     </template>
 

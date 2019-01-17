@@ -23,9 +23,9 @@ models.load_models({
     model: 'event.event',
     fields: ['name', 'event_ticket_ids'],
     ids:    function(self){
-        return [self.config.pos_event[0]];
+        return self.config.pos_event_id && [self.config.pos_event_id[0]];
     },
-//    domain: [['id', '=', self.config.pos_event]],
+//    domain: [['id', '=', self.config.pos_event_id]],
     loaded: function(self, event){
         self.event = {};
         if (event && event.length) {
@@ -35,9 +35,9 @@ models.load_models({
 });
 models.load_models({
     model: 'event.registration',
-    fields: ['id', 'name', 'partner_id', 'date_open', 'state', 'email', 'state', 'event_ticket_id'],
+    fields: ['id', 'name', 'partner_id', 'date_open', 'state', 'email', 'state', 'event_ticket_id', 'barcode', 'rfid'],
     domain: function(self){
-        return [['event_id', '=', self.config.pos_event[0]]];
+        return [['event_id', '=', self.config.pos_event_id && self.config.pos_event_id[0]]];
     },
     loaded: function(self, attendees){
         self.db.attendees = attendees;
@@ -47,13 +47,32 @@ models.load_models({
             self.db.attendee_by_id[a.id] = a;
             self.db.attendee_sorted.push(a);
         });
+        self.db.ticket_customers_ids = _.unique(_.map(attendees, function(a){
+            return a.partner_id[0];
+        }));
+    },
+});
+models.load_models({
+    // adds ticket customers as partners
+    model: 'res.partner',
+    fields: ['name','street','city','state_id','country_id','vat','phone','zip','mobile','email','barcode','write_date','property_account_position_id'],
+//    domain: function(self) {
+//        return self.config.pos_event_id && [['id','in',self.db.ticket_customers_ids]];
+//    },
+    ids:    function(self){
+        return self.config.pos_event_id
+         ? self.db.ticket_customers_ids
+         : [];
+    },
+    loaded: function(self, partners){
+        self.db.add_partners(partners);
     },
 });
 models.load_models({
     model: 'event.event.ticket',
     fields: ['id', 'name', 'event_id', 'product_id', 'registration_ids', 'price'],
     domain: function(self){
-        return [['event_id', '=', self.config.pos_event[0]]];
+        return [['event_id', '=', self.config.pos_event_id && self.config.pos_event_id[0]]];
     },
     loaded: function(self, tickets){
         self.db.tickets = tickets;
@@ -69,11 +88,13 @@ models.load_models({
 models.load_models({
     model:  'product.product',
     fields: ['display_name', 'list_price','price','pos_categ_id', 'taxes_id', 'barcode', 'default_code',
-             'to_weight', 'uom_id', 'description_sale', 'description',
+             'to_weight', 'uom_id', 'description_sale', 'description','event_ticket_ids', 'event_ok',
              'product_tmpl_id','tracking'],
     order:  ['sequence','default_code','name'],
     ids:    function(self){
-        return self.ticket_products;
+        return self.config.pos_event_id
+         ? self.ticket_products
+         : [];
     },
     loaded: function(self, products){
         _.each(products, function(p){
@@ -87,16 +108,36 @@ models.load_models({
 devices.BarcodeReader.include({
     scan: function(code){
         if (!posmodel.gui.current_screen.attendee_screen) {
-            this._super(code);
+            return this._super(code);
         }
         var parsed_result = this.barcode_parser.parse_barcode(code);
-        this.pos.gui.screen_instances.attendeelist.barcode_attendee_action();
-        console.log(parsed_result);
+        this.pos.gui.screen_instances.attendeelist.barcode_attendee_action(code);
     },
-})
+});
+
+screens.ProductListWidget.include({
+    set_product_list: function(product_list){
+        // filters out non ticket products TODO: make it customizable
+        if (this.pos.config.pos_event_id) {
+            var self = this;
+            product_list = _.filter(product_list, function(p){
+                return _.includes(self.pos.ticket_products, p.id);
+            });
+        }
+        return this._super(product_list);
+    },
+});
+
 
 var PosModelSuper = models.PosModel;
 models.PosModel = models.PosModel.extend({
+    initialize: function(){
+        var self = this;
+        PosModelSuper.prototype.initialize.apply(this, arguments);
+        this.ready.then(function () {
+            self.bus.add_channel_callback("pos_attendee_update", self.on_attendee_updates, self);
+        });
+    },
 
     load_new_attendees: function(){
         var self = this;
@@ -104,7 +145,7 @@ models.PosModel = models.PosModel.extend({
         var fields = _.find(this.models,function(model){ return model.model === 'event.registration'; }).fields;
         new Model('event.registration')
             .query(fields)
-            .filter([['event_id', '=', self.config.pos_event[0]]])
+            .filter([['event_id', '=', self.config.pos_event_id[0]]])
             .all({'timeout':3000, 'shadow': true})
             .then(function(attendees){
                 if (self.db.add_attendees(attendees)) {   // check if the attendees we got were real updates
@@ -116,6 +157,9 @@ models.PosModel = models.PosModel.extend({
         return def;
     },
 
+    on_attendee_updates: function(data) {
+        this.gui.screen_instances.attendeelist.reload_attendees();
+    },
 });
 
 PosDB.include({
@@ -139,6 +183,17 @@ PosDB.include({
     get_attendee_by_id: function(id){
         return this.attendee_by_id[id];
     },
+    get_attendee_by_barcode: function(barcode) {
+        return _.find(this.attendees, function(a){
+            return a.barcode && a.barcode === barcode;
+        });
+    },
+    get_attendee_by_partner_id: function(partner_id) {
+        return _.find(this.attendees, function(i){
+            return i.partner_id[0] === partner_id;
+        });
+    },
+
     add_attendees: function(attendees){
         var updated_count = 0;
         var new_write_date = '';
@@ -146,25 +201,13 @@ PosDB.include({
         for(var i = 0, len = attendees.length; i < len; i++){
             attendee = attendees[i];
 
-            var local_attendee_date = (this.attendee_date_open || '').replace(/^(\d{4}-\d{2}-\d{2}) ((\d{2}:?){3})$/, '$1T$2Z');
-            var dist_attendee_date = (attendee.write_date || '').replace(/^(\d{4}-\d{2}-\d{2}) ((\d{2}:?){3})$/, '$1T$2Z');
-            if (    this.attendee_date_open &&
-                    this.attendee_by_id[attendee.id] &&
-                    new Date(local_attendee_date).getTime() + 1000 >=
-                    new Date(dist_attendee_date).getTime() ) {
-                continue;
-            } else if ( new_write_date < attendee.write_date ) { 
-                new_write_date  = attendee.write_date;
-            }
             if (!this.attendee_by_id[attendee.id]) {
-                this.attendee_sorted.push(attendee.id);
+                this.attendee_sorted.push(attendee);
             }
             this.attendee_by_id[attendee.id] = attendee;
 
             updated_count += 1;
         }
-
-        this.attendee_date_open = new_write_date || this.attendee_date_open;
 
         if (updated_count) {
             // If there were updates, we need to completely 
@@ -223,6 +266,57 @@ PosDB.include({
 
 });
 
+screens.PaymentScreenWidget.include({
+
+    validate_order: function(options) {
+        var currentOrder = this.pos.get_order();
+        var client = currentOrder.get_client();
+        if (!client){
+            this.gui.show_popup('error',{
+                'title': _t('Unknown customer'),
+                'body': _t('You cannot sell a ticket with unselected customer. Create / Select customer first.'),
+            });
+            return;
+        } else if (!client.email) {
+            this.gui.show_popup('error',{
+                'title': _t('Customers email is not set'),
+                'body': _t('You cannot sell a ticket to a customer with unspecified email.'),
+            });
+            return;
+        }
+        var attendee = this.check_partner_is_attendee(client);
+        if (attendee) {
+            this.gui.show_popup('error',{
+                'title': _t('Customer has a Ticket'),
+                'body': _t('You cannot sell multiple tickets to the same person.'),
+            });
+            return;
+        }
+        var res = this._super(options);
+//        this.create_attendee(client.id);
+        return res;
+    },
+
+    check_partner_is_attendee: function (partner) {
+        return _.find(this.pos.db.attendees, function(a){
+            return a.partner_id[0] === partner.id;
+        });
+    },
+
+//    create_attendee: function(customer_id) {
+//        var self = this;
+//        // better to realise it via longpolling
+//        var client = this.pos.db.get_partner_by_id(customer_id);
+//        var attendee = {};
+//
+//        attendee.partner_id = [client.id, client.name];
+//        attendee.name = client.name;
+//        attendee.state = 'open';
+//
+//        console.log(this);
+//    },
+});
+
 
 /*--------------------------------------*\
  |           ATTENDEE LIST              |
@@ -237,6 +331,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
     init: function(parent, options){
         this._super(parent, options);
         this.attendee_cache = new screens.DomCache();
+
     },
 
 
@@ -245,7 +340,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
     },
     set_attendee: function(attendee) {
         this.current_attendee = attendee;
-        return attendee
+        return attendee;
     },
 
     show: function(){
@@ -254,7 +349,8 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 
         this.renderElement();
         this.details_visible = false;
-        this.old_client = this.get_attendee();
+        var client = this.pos.get_client();
+        this.old_attendee = this.pos.db.get_attendee_by_partner_id(client && client.id);
 
         this.$('.back').click(function(){
             self.gui.back();
@@ -265,20 +361,13 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             self.gui.back();    // FIXME HUH ?
         });
 
-        /* It should be created during purchase via partner model
-        this.$('.new-customer').click(function(){
-            self.display_client_details('edit',{
-                'country_id': self.pos.company.country_id,
-            });
-        });*/
-
         var attendees = this.pos.db.get_attendees_sorted(1000);
         this.render_list(attendees);
 
         this.reload_attendees();
 
-        if( this.old_client ){
-            this.display_client_details('show',this.old_client,0);
+        if( this.old_attendee ){
+            this.display_client_details('show',this.old_attendee,0);
         }
 
         this.$('.client-list-contents').delegate('.client-line','click',function(event){
@@ -308,19 +397,59 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         this.pos.barcode_reader.set_action_callback({
             'attendee': _.bind(self.barcode_attendee_action, self),
         });
+
+        var $button_attendee = this.$('.button.attendeed.highlight');
+        $button_attendee.on('click', function(e){
+
+            self.validate_attendee();
+
+        });
     },
     hide: function () {
         this._super();
-        this.new_client = null;
+        this.current_attendee = null;
+    },
+
+    validate_attendee: function() {
+        var self = this;
+
+        if (!this.check_for_rfid()) {
+            self.gui.show_popup('error',{
+                'title': _t('Error: Could not Accept Attendee'),
+                'body': 'RFID is not set',
+            });
+            return false;
+        }
+
+        return new Model('event.registration').call('register_attendee_from_ui',[self.current_attendee.id]).then(function(attendee_id){
+            self.saved_client_details(attendee_id);
+        },function(err,event){
+            event.preventDefault();
+            var error_body = _t('Your Internet connection is probably down.');
+            if (err.data) {
+                var except = err.data;
+                error_body = except.arguments && except.arguments[0] || except.message || error_body;
+            }
+            self.gui.show_popup('error',{
+                'title': _t('Error: Could not Save Changes'),
+                'body': error_body,
+            });
+        });
+    },
+    check_for_rfid: function() {
+        return this.pos.config.ask_for_rfid && this.current_attendee.rfid;
     },
 
     barcode_attendee_action: function(code){
-        if (this.editing_client) {
-            this.$('.detail.barcode').val(code.code);
-        } else if (this.pos.db.get_attendee_by_barcode(code.code)) {
-            var attendee = this.pos.db.get_attendee_by_barcode(code.code);
-            this.new_client = attendee;
+        var attendee = this.pos.db.get_attendee_by_barcode(code);
+        if (attendee) {
+            this.current_attendee = attendee;
             this.display_client_details('show', attendee);
+        } else if (this.current_attendee) {
+            this.current_attendee.rfid = code;
+            this.display_client_details('show', this.current_attendee);
+            this.save_client_details(this.current_attendee);
+            this.render_list(this.pos.db.get_attendees_sorted(1000));
         }
     },
 
@@ -330,7 +459,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             customers = this.pos.db.search_attendee(query);
             this.display_client_details('hide');
             if ( associate_result && customers.length === 1){
-                this.new_client = customers[0];
+                this.current_attendee = customers[0];
                 this.save_changes();
                 this.gui.back();
             }
@@ -350,7 +479,11 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         var contents = this.$el[0].querySelector('.client-list-contents');
         contents.innerHTML = "";
         for(var i = 0, len = Math.min(attendees.length,1000); i < len; i++){
-            var attendee    = attendees[i];
+            var attendee = attendees[i];
+            if (!attendee){
+                // TODO: why here comes undefined attendeees
+                continue;
+            }
             var clientline = this.attendee_cache.get_node(attendee.id);
             if(!clientline){
                 var clientline_html = QWeb.render('AttendeeLine',{widget: this, attendee:attendees[i]});
@@ -359,7 +492,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
                 clientline = clientline.childNodes[1];
                 this.attendee_cache.cache_node(attendee.id,clientline);
             }
-            if( attendee === this.old_client ){
+            if( attendee === this.old_attendee ){
                 clientline.classList.add('highlight');
             }else{
                 clientline.classList.remove('highlight');
@@ -374,22 +507,22 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             var default_fiscal_position_id = _.find(this.pos.fiscal_positions, function(fp) {
                 return fp.id === self.pos.config.default_fiscal_position_id[0];
             });
-            if ( this.new_client && this.new_client.property_account_position_id ) {
+            if ( this.current_attendee && this.current_attendee.property_account_position_id ) {
                 order.fiscal_position = _.find(this.pos.fiscal_positions, function (fp) {
-                    return fp.id === self.new_client.property_account_position_id[0];
+                    return fp.id === self.current_attendee.property_account_position_id[0];
                 }) || default_fiscal_position_id;
             } else {
                 order.fiscal_position = default_fiscal_position_id;
             }
 
-            order.set_client(this.new_client);
+            order.set_client(this.current_attendee);
         }
     },
     has_client_changed: function(){
-        if( this.old_client && this.new_client ){
-            return this.old_client.id !== this.new_client.id;
+        if( this.old_attendee && this.current_attendee ){
+            return this.old_attendee.id !== this.current_attendee.id;
         }else{
-            return !!this.old_client !== !!this.new_client;
+            return !!this.old_attendee !== !!this.current_attendee;
         }
     },
     toggle_save_button: function(){
@@ -397,8 +530,8 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         if (this.editing_client) {
             $button.addClass('oe_hidden');
             return;
-        } else if( this.new_client ){
-            if( !this.old_client){
+        } else if( this.current_attendee ){
+            if( !this.old_attendee){
                 $button.text(_t('Set Customer'));
             }else{
                 $button.text(_t('Change Customer'));
@@ -407,6 +540,13 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             $button.text(_t('Deselect Customer'));
         }
         $button.toggleClass('oe_hidden',!this.has_client_changed());
+
+        var $button_attendee = this.$('.button.attendeed.highlight');
+        if (this.current_attendee && this.current_attendee.state == 'open') {
+            $button_attendee.show();
+        } else {
+            $button_attendee.hide();
+        }
     },
     line_select: function(event,$line,id){
         var attendee = this.pos.db.get_attendee_by_id(id);
@@ -415,14 +555,14 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             $line.removeClass('highlight');
             $line.addClass('lowlight');
             this.display_client_details('hide',attendee);
-            this.new_client = null;
+            this.current_attendee = null;
             this.toggle_save_button();
         }else{
             this.$('.client-list .highlight').removeClass('highlight');
             $line.addClass('highlight');
             var y = event.pageY - $line.parent().offset().top;
+            this.current_attendee = attendee;
             this.display_client_details('show',attendee,y);
-            this.new_client = attendee;
             this.toggle_save_button();
         }
     },
@@ -451,22 +591,26 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         var self = this;
 
         var fields = {};
-        this.$('.client-details-contents .detail').each(function(idx,el){
-            fields[el.name] = el.value || false;
-        });
+        if (this.editing_client) {
+            this.$('.client-details-contents .detail').each(function(idx,el){
+                fields[el.name] = el.value || false;
+            });
+            if (!fields.name) {
+                this.gui.show_popup('error',_t('A Customer Name Is Required'));
+                return;
+            }
 
-        if (!fields.name) {
-            this.gui.show_popup('error',_t('A Customer Name Is Required'));
-            return;
+        } else {
+            this.$('.client-details-contents .field').each(function(idx,el){
+                fields[el.getAttribute('name')] = el.innerHTML || false;
+            });
         }
 
-        if (this.uploaded_picture) {
-            fields.image = this.uploaded_picture;
-        }
 
-        fields.id           = attendee.id || false;
-        fields.country_id   = fields.country_id || false;
-
+        fields.id = attendee.id || false;
+        fields.country_id = fields.country_id || false;
+        fields.session_id = this.pos.pos_session.id;
+        fields.event_id = this.pos.config.pos_event_id[0];
         new Model('event.registration').call('create_from_ui',[fields]).then(function(attendee_id){
             self.saved_client_details(attendee_id);
         },function(err,event){
@@ -489,7 +633,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         return this.reload_attendees().then(function(){
             var attendee = self.pos.db.get_attendee_by_id(attendee_id);
             if (attendee) {
-                self.new_client = attendee;
+                self.current_attendee = attendee;
                 self.toggle_save_button();
                 self.display_client_details('show',attendee);
             } else {
@@ -564,12 +708,6 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             self.attendee_cache = new screens.DomCache();
 
             self.render_list(self.pos.db.get_attendees_sorted(1000));
-
-            // update the currently assigned client if it has been changed in db.
-            var curr_client = self.pos.get_order().get_client();
-            if (curr_client) {
-                self.pos.get_order().set_client(self.pos.db.get_attendee_by_id(curr_client.id));
-            }
         });
     },
 
@@ -621,6 +759,7 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 
             this.details_visible = true;
             this.toggle_save_button();
+//            this.show_update_button();
         } else if (visibility === 'edit') {
             // Connect the keyboard to the edited field
             if (this.pos.config.iface_vkeyboard && this.chrome.widget.keyboard) {
@@ -675,6 +814,14 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
             this.toggle_save_button();
         }
     },
+//    show_update_button: function(){
+//        var update_button_html = QWeb.render('AttendeeUpdateButton',{widget: this});
+//        var update_button_div = this.$el.find('.attendee-update-buttons');
+//        update_button_div.innerHTML = update_button_html;
+//
+//        console.log(this, update_button_div);
+//    },
+
     close: function(){
         this._super();
         if (this.pos.config.iface_vkeyboard && this.chrome.widget.keyboard) {
@@ -694,6 +841,9 @@ var AttendeeButton = screens.ActionButtonWidget.extend({
 screens.define_action_button({
     'name': 'attendee_button',
     'widget': AttendeeButton,
+    'condition': function(){
+        return this.pos.config.pos_event_id;
+    },
 });
 
 });
