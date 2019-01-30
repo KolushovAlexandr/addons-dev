@@ -17,6 +17,22 @@ import logging
 _logger = logging.getLogger(__name__)
 
 
+class PosConfig(models.Model):
+    _inherit = 'pos.config'
+
+    ask_attendees_for_esign = fields.Boolean(string='Attendee E-Sign', compute='_compute_terms_to_sign', readonly=True,
+                                             default=False, help='Ask Attendees to Sign before they attendeed')
+    terms_to_sign = fields.Char(compute='_compute_terms_to_sign', store=True)
+
+    @api.multi
+    @api.depends('pos_event_id')
+    @api.onchange('pos_event_id')
+    def _compute_terms_to_sign(self):
+        for conf in self:
+            conf.terms_to_sign = conf.pos_event_id and conf.pos_event_id.terms_to_sign or conf.terms_to_sign or ''
+            conf.ask_attendees_for_esign = conf.pos_event_id and conf.pos_event_id.mandatory_esign or False
+
+
 class EventRegistration(models.Model):
     """Attendee"""
     _inherit = 'event.registration'
@@ -25,7 +41,7 @@ class EventRegistration(models.Model):
     completed_document = fields.Binary(readonly=True, string="Completed Document", attachment=True)
     signed_terms = fields.Boolean('Terms are Signed', compute='_compute_signed_terms')
 
-    event_request_id = fields.Many2one('signature.request', string='Terms sign request')
+    signature_request_id = fields.Many2one('signature.request', string='Terms sign request')
 
     @api.multi
     @api.depends('sign_attachment_id')
@@ -47,15 +63,13 @@ class EventRegistration(models.Model):
                 'attendee_id': self.id,
             })
 
-
     @api.one
     def embed_sign_to_pdf(self):
         if not self.event_id.signature_template_id:
             return False
-
         packet = StringIO.StringIO()
         can = canvas.Canvas(packet)
-        pdf = self.event_request_id.template_id
+        pdf = self.signature_request_id.template_id or self.event_id.signature_template_id
         itemsByPage = pdf.signature_item_ids.getByPage()
         old_pdf = PdfFileReader(StringIO.StringIO(base64.b64decode(self.event_id.signature_template_id.attachment_id.datas)))
         for p in range(0, old_pdf.getNumPages()):

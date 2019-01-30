@@ -11,7 +11,7 @@
                 <group string="Attendee Information" name="event">
                     <field name="sign_attachment_id"/>
                     <field name="signed_terms"/>
-                    <field name="event_request_id"/>
+                    <field name="signature_request_id"/>
                     <field name="completed_document"/>
                 </group>
             </xpath>
@@ -42,5 +42,16 @@
 
     <menuitem id="est_menu" sequence="50" name="EST" parent="event.event_main_menu"/>
     <menuitem id="attendee_signature_request_menu" name="Signature Requests" parent="est_menu" action="website_sign.signature_request_action"/>
+
+    <record id="view_pos_config_form" model="ir.ui.view">
+        <field name="name">pos.config.form</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_config_form"/>
+        <field name="arch" type="xml">
+            <group name="event" position="inside">
+                <field name="ask_attendees_for_esign" attrs="{'invisible':[('pos_event_id','in', [False, None])]}"/>
+            </group>
+        </field>
+    </record>
 
 </odoo>

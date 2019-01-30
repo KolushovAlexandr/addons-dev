@@ -9,9 +9,13 @@
         <field name="model">pos.config</field>
         <field name="inherit_id" ref="point_of_sale.view_pos_config_form"/>
         <field name="arch" type="xml">
-            <field name="iface_display_categ_images" position="after">
-                <field name="pos_event_id"/>
-            </field>
+            <group name="receipt" position="after">
+                <group name="event" string="Event" >
+                    <field name="pos_event_id"/>
+                    <field name="show_only_tickets" attrs="{'invisible':[('pos_event_id','in', [False, None])]}"/>
+                    <field name="ask_for_rfid" attrs="{'invisible':[('pos_event_id','in', [False, None])]}"/>
+                </group>
+            </group>
         </field>
     </record>
 

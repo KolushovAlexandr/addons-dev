@@ -43,8 +43,8 @@ screens.PaymentScreenWidget.include({
         });
 
         this.pos.bind('changed:partner_esign', function(res){
-            console.log('PAYMENT', res)
-            if (self.pos.get_client().id === res.partner_id) {
+            var client = self.pos.get_client();
+            if (client && client.id === res.partner_id) {
                 next_button.show();
             }
         });
@@ -65,8 +65,11 @@ gui.Gui.prototype.screen_classes.filter(function(el) {
         esign_button.off().on('click', function(e){
             var partner = self.new_client || self.old_client;;
             Session.rpc('/pos_longpolling/sign_request', {
-                 partner_id: partner.id,
-                 config_id: self.pos.config.id,
+                vals: {
+                    partner_id: partner.id,
+                    partner_name: partner.name,
+                    config_id: self.pos.config.id,
+                },
             });
         });
 

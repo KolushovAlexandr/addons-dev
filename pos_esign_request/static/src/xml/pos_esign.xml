@@ -17,11 +17,9 @@
             <th id="client-list-esign">E-Sign</th>
         </t>
         <t t-jquery=".button.next" t-operation="before">
-            <div id="client_list_header_buttons">
-                <span id="esign_request" class="button esign">
-                    E-Sign
-                </span>
-            </div>
+            <span id="esign_request" class="button esign">
+                E-Sign
+            </span>
         </t>
     </t>
 

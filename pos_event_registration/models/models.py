@@ -56,18 +56,12 @@ class EventRegistration(models.Model):
         """ create or modify a attendee from the point of sale ui.
             partner contains the partner's fields. """
         attendee_id = attendee.pop('id', False)
-        # import wdb
-        # wdb.set_trace()
         if attendee_id:  # Modifying existing partner
             attendee_id = self.browse(attendee_id)
             attendee_id.write(attendee)
         else:
             attendee_id = self.create(attendee)
-        # import wdb
-        # wdb.set_trace()
         if 'rfid' in attendee:
-            import wdb
-            wdb.set_trace()
             self.env['event.bracelet'].create({
                 'rfid': attendee['rfid'],
                 'session_id': attendee['session_id'],
@@ -80,7 +74,7 @@ class EventRegistration(models.Model):
     def register_attendee_from_ui(self):
         self.ensure_one()
         self.button_reg_close()
-        return self
+        return self.id
 
     @api.multi
     def send_updates(self):

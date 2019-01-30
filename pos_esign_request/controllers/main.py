@@ -10,34 +10,35 @@ import json
 class PosESignExtension(http.Controller):
 
     @http.route('/pos_longpolling/sign_request', type="json", auth="user")
-    def sign_request(self, partner_id, config_id):
+    def sign_request(self, vals):
         channel_name = "pos.sign_request.to_est"
-        config_id = request.env['pos.config'].browse(config_id)
+        config_id = request.env['pos.config'].browse(vals.get('config_id', False))
         if request.env['ir.config_parameter'].get_param('pos_longpolling.allow_public'):
             config_id = config_id.sudo()
 
-        partner_id = request.env["res.partner"].browse(int(partner_id))
-
-        # {
-        # 'notification': {
-        #     'type': 'error',
-        #     'header': 'Event Signature Template Error',
-        #     'text': 'Set Event Signature Template before sending requests',
-        # }}
-
-        data = {
-            'partner_name': partner_id.name,
-            'partner_id': partner_id.id,
-        }
-
-        config_id.send_to_esign_tab(channel_name, config_id.id, json.dumps(data))
+        config_id.send_to_esign_tab(channel_name, config_id.id, json.dumps(vals))
 
     @http.route('/pos_longpolling/submit_sign', type="json", auth="user")
-    def submit_kiosk_sign(self, partner_id, sign, config_id):
-        ir_attachment = request.env['ir.attachment']
-        partner_id = request.env["res.partner"].browse(int(partner_id))
-        config_id = request.env["pos.config"].browse(config_id)
+    def submit_kiosk_sign(self, vals):
 
+        config_id = request.env["pos.config"].browse(vals.get('config_id', 0))
+        res = self.update_partner_sign(vals)
+
+        if res and config_id:
+            channel_name = "pos.sign_request"
+            config_id._send_to_channel_by_id(config_id._cr.dbname, config_id.id, channel_name, json.dumps(res))
+
+        return True
+
+    def update_partner_sign(self, vals):
+
+        partner_id = vals.get('partner_id', False)
+        sign = vals.get('sign', False)
+        if not (partner_id and sign):
+            return False
+
+        partner_id = request.env["res.partner"].browse(int(partner_id))
+        ir_attachment = request.env['ir.attachment']
         attachment = ir_attachment.create({
             'type': 'binary',
             'name': partner_id.name + 'E-Sign',
@@ -51,12 +52,7 @@ class PosESignExtension(http.Controller):
             'sign_attachment_id': attachment.id,
         })
 
-        res = {
+        return {
             'partner_id': partner_id.id,
             'attachment_id': [partner_id.sign_attachment_id.id, partner_id.sign_attachment_id.name],
         }
-
-        channel_name = "pos.sign_request"
-        config_id._send_to_channel_by_id(config_id._cr.dbname, config_id.id, channel_name, json.dumps(res))
-
-        return [attachment.id, attachment.name]

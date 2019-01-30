@@ -31,10 +31,9 @@ var AcceptModalKiosk = Widget.extend({
         var self = this;
         var $confirm_btn = $('button#submit_sign');
         ev.preventDefault();
-        var $drawsign = $('#drawsign');
-        var signature = $drawsign.find("#signature").jSignature("getData",'image');
-        var is_empty = signature ? this.empty_sign[1] == signature[1] : false;
-        $drawsign.toggleClass('panel-danger', is_empty).toggleClass('panel-default', !is_empty);
+        var values = this.compose_vals();
+        var is_empty = values.signature ? this.empty_sign[1] == values.signature[1] : false;
+        $('#drawsign').toggleClass('panel-danger', is_empty).toggleClass('panel-default', !is_empty);
         if (is_empty){
             setTimeout(function () {
                 $confirm_btn.removeAttr('data-loading-text').button('reset');
@@ -45,13 +44,21 @@ var AcceptModalKiosk = Widget.extend({
         $confirm_btn.prepend('<i class="fa fa-spinner fa-spin"></i> ');
         $confirm_btn.attr('disabled', true);
         Session.rpc('/pos_longpolling/submit_sign', {
-            'partner_id': this.kiosk.partner.partner_id,
-            'sign': signature?JSON.stringify(signature[1]):false,
-            'config_id': this.kiosk.action.context.config_id,
+            vals: values,
         }).then(function(result) {
             self.kiosk.close_sign_form();
         });
         return false;
+    },
+
+    compose_vals: function() {
+        var $drawsign = $('#drawsign');
+        var signature = $drawsign.find("#signature").jSignature("getData",'image');
+        return {
+            'partner_id': this.kiosk.partner.partner_id,
+            'sign': signature?JSON.stringify(signature[1]):false,
+            'config_id': this.kiosk.action.context.config_id,
+        };
     },
 
 });
@@ -251,6 +258,9 @@ var KioskMode = Widget.extend(BarcodeHandlerMixin, {
 
 core.action_registry.add('est_kiosk_mode', KioskMode);
 
-return KioskMode;
+return {
+    KioskMode: KioskMode,
+    AcceptModalKiosk: AcceptModalKiosk,
+};
 
 });

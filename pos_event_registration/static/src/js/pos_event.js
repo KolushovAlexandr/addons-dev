@@ -25,7 +25,6 @@ models.load_models({
     ids:    function(self){
         return self.config.pos_event_id && [self.config.pos_event_id[0]];
     },
-//    domain: [['id', '=', self.config.pos_event_id]],
     loaded: function(self, event){
         self.event = {};
         if (event && event.length) {
@@ -56,9 +55,6 @@ models.load_models({
     // adds ticket customers as partners
     model: 'res.partner',
     fields: ['name','street','city','state_id','country_id','vat','phone','zip','mobile','email','barcode','write_date','property_account_position_id'],
-//    domain: function(self) {
-//        return self.config.pos_event_id && [['id','in',self.db.ticket_customers_ids]];
-//    },
     ids:    function(self){
         return self.config.pos_event_id
          ? self.db.ticket_customers_ids
@@ -118,7 +114,7 @@ devices.BarcodeReader.include({
 screens.ProductListWidget.include({
     set_product_list: function(product_list){
         // filters out non ticket products TODO: make it customizable
-        if (this.pos.config.pos_event_id) {
+        if (this.pos.config.pos_event_id && this.pos.config.show_only_tickets) {
             var self = this;
             product_list = _.filter(product_list, function(p){
                 return _.includes(self.pos.ticket_products, p.id);
@@ -400,11 +396,11 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 
         var $button_attendee = this.$('.button.attendeed.highlight');
         $button_attendee.on('click', function(e){
-
             self.validate_attendee();
-
         });
     },
+
+
     hide: function () {
         this._super();
         this.current_attendee = null;
@@ -845,5 +841,10 @@ screens.define_action_button({
         return this.pos.config.pos_event_id;
     },
 });
+
+return {
+    AttendeeButton: AttendeeButton,
+    AttendeeListScreenWidget: AttendeeListScreenWidget,
+}
 
 });

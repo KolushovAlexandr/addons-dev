@@ -19,15 +19,17 @@
     "depends": [
         "pos_esign_request",
         "pos_event_registration",
+        "website_sign"
     ],
     "external_dependencies": {"python": [], "bin": []},
     "data": [
-        "views/event_views.xml"
+        "views/views.xml",
         "views/assets.xml"
     ],
     "demo": [
     ],
     "qweb": [
+        "static/src/xml/pos_esign.xml",
     ],
 
     "post_load": None,
