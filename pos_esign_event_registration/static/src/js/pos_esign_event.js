@@ -29,7 +29,6 @@ models.PosModel = models.PosModel.extend({
         var res = JSON.parse(res);
         if (res.attendee_id){
             this.trigger('changed:attendee_esign', res);
-            console.log(res);
         }
     },
 
@@ -52,14 +51,11 @@ pos_event.AttendeeListScreenWidget.include({
                         config_id: self.pos.config.id,
                         attendee_id: attendee.id,
                     },
-                }).then(function(res){
-                    console.log(res)
                 });
             }
         });
 
         this.pos.bind('changed:attendee_esign', function(res){
-            console.log('PAYMENT', res)
             if (res.attendee_id && self.current_attendee && res.attendee_id === self.current_attendee.id &&
                 res.signed_terms) {
                 self.$el.find('.button.attendeed').show();

@@ -30,6 +30,7 @@
     ],
     "qweb": [
         "static/src/xml/attendee_screen.xml",
+        "static/src/xml/templates.xml",
     ],
 
     "post_load": None,

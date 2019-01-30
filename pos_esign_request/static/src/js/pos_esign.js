@@ -74,7 +74,6 @@ gui.Gui.prototype.screen_classes.filter(function(el) {
         });
 
         this.pos.bind('changed:partner_esign', function(res){
-            console.log('CLIENTLIST', res)
             var partners = self.pos.db.get_partners_sorted(1000);
             self.$el.find('tr[data-id="' + res.partner_id + '"] td.esign').text("✔");
         });

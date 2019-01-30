@@ -117,7 +117,7 @@ devices.BarcodeReader.include({
 
     show_attendee_in_list: function(attendee){
         var attendeelist = this.pos.gui.screen_instances.attendeelist;
-        posmodel.gui.show_screen('attendeelist');
+        this.pos.gui.show_screen('attendeelist');
         attendeelist.display_client_details('show',attendee);
     },
 });
@@ -165,7 +165,10 @@ models.PosModel = models.PosModel.extend({
     },
 
     on_attendee_updates: function(data) {
-        this.gui.screen_instances.attendeelist.reload_attendees();
+        var self = this;
+        this.gui.screen_instances.attendeelist.reload_attendees().then(function(){
+            self.trigger('changed:attendee', data);
+        });
     },
 
     open_record_in_backend: function(model, id){
@@ -326,7 +329,6 @@ screens.PaymentScreenWidget.include({
 //        attendee.name = client.name;
 //        attendee.state = 'open';
 //
-//        console.log(this);
 //    },
 });
 
@@ -839,7 +841,6 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 //        var update_button_div = this.$el.find('.attendee-update-buttons');
 //        update_button_div.innerHTML = update_button_html;
 //
-//        console.log(this, update_button_div);
 //    },
 
     close: function(){
@@ -877,6 +878,31 @@ gui.Gui.prototype.screen_classes.filter(function(el) {
                 self.pos.open_record_in_backend('res.partner', partner.id);
             });
         }
+    },
+});
+
+screens.ReceiptScreenWidget.include({
+    show: function(){
+        this._super();
+        var self = this;
+        var attendee_button = this.$el.find('.button.attendee');
+        attendee_button.hide();
+        this.pos.bind('changed:attendee', function(res){
+            if(!res.attendees){
+                return;
+            }
+            var client = this.get_order().get_client();
+            var attendee = this.db.attendee_by_id[res.attendees[0]];
+            if (client.id === attendee.partner_id[0]){
+                attendee_button.on('click', function(e){
+                    self.click_next();
+                    var attendeelist = self.pos.gui.screen_instances.attendeelist;
+                    self.pos.gui.show_screen('attendeelist');
+                    attendeelist.display_client_details('show',attendee);
+                });
+                attendee_button.show();
+            }
+        });
     },
 });
 
