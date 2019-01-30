@@ -90,12 +90,18 @@ pos_event.AttendeeListScreenWidget.include({
         if ( $line.hasClass('highlight') ){
             attendeed_button.hide();
             esign_button.show();
-            if(this.current_attendee.signed_terms){
-                attendeed_button.show();
-            }
+            this.action_show_attendeed_button();
         } else {
             esign_button.hide();
             attendeed_button.hide();
+        }
+    },
+    action_show_attendeed_button: function(){
+        var $button_attendee = this.$('.button.attendeed.highlight');
+        if(this.current_attendee && this.current_attendee.signed_terms){
+            this._super();
+        } else {
+            $button_attendee.hide();
         }
     },
 });

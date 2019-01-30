@@ -18,6 +18,8 @@ class PosConfig(models.Model):
     show_only_tickets = fields.Boolean(string='Only Tickets', help='Show only ticket products', default=False)
     ask_for_rfid = fields.Boolean(string='Mandatory RFID',
                                   help='Ask for RFID to process attendee', store=True)
+    web_url = fields.Char(
+        default=lambda self: self.env["ir.config_parameter"].get_param("web.base.url") + "/web#id=")
 
 
 class ResPartner(models.Model):
@@ -97,6 +99,7 @@ class PosOrder(models.Model):
                 'origin': order.pos_reference,
                 'event_ticket_id': order.lines.product_id.event_ticket_ids[0].id,
                 'email': order.partner_id.email,
+                'name': order.partner_id.name,
                 'state': 'open',
             })
             attendee.send_updates()

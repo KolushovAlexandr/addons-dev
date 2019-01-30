@@ -103,11 +103,22 @@ models.load_models({
 
 devices.BarcodeReader.include({
     scan: function(code){
+        var attendeelist = this.pos.gui.screen_instances.attendeelist;
         if (!posmodel.gui.current_screen.attendee_screen) {
+            var attendee = this.pos.db.get_attendee_by_barcode(code);
+            if (attendee) {
+                return this.show_attendee_in_list(attendee);
+            }
             return this._super(code);
         }
         var parsed_result = this.barcode_parser.parse_barcode(code);
-        this.pos.gui.screen_instances.attendeelist.barcode_attendee_action(code);
+        attendeelist.barcode_attendee_action(parsed_result);
+    },
+
+    show_attendee_in_list: function(attendee){
+        var attendeelist = this.pos.gui.screen_instances.attendeelist;
+        posmodel.gui.show_screen('attendeelist');
+        attendeelist.display_client_details('show',attendee);
     },
 });
 
@@ -155,6 +166,12 @@ models.PosModel = models.PosModel.extend({
 
     on_attendee_updates: function(data) {
         this.gui.screen_instances.attendeelist.reload_attendees();
+    },
+
+    open_record_in_backend: function(model, id){
+        var url = this.config.web_url + id + "&view_type=form&model=" + model;
+        var win = window.open(url, '_blank');
+        win.focus();
     },
 });
 
@@ -436,7 +453,8 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         return this.pos.config.ask_for_rfid && this.current_attendee.rfid;
     },
 
-    barcode_attendee_action: function(code){
+    barcode_attendee_action: function(parsed_result){
+        var code = parsed_result.code;
         var attendee = this.pos.db.get_attendee_by_barcode(code);
         if (attendee) {
             this.current_attendee = attendee;
@@ -537,6 +555,9 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
         }
         $button.toggleClass('oe_hidden',!this.has_client_changed());
 
+        this.action_show_attendeed_button();
+    },
+    action_show_attendeed_button: function(){
         var $button_attendee = this.$('.button.attendeed.highlight');
         if (this.current_attendee && this.current_attendee.state == 'open') {
             $button_attendee.show();
@@ -755,6 +776,9 @@ var AttendeeListScreenWidget = screens.ScreenWidget.extend({
 
             this.details_visible = true;
             this.toggle_save_button();
+            this.$('.client-details:not(.edit) .client-name').off().on('click', function(e){
+                self.pos.open_record_in_backend('event.registration', attendee.id);
+            });
 //            this.show_update_button();
         } else if (visibility === 'edit') {
             // Connect the keyboard to the edited field
@@ -839,6 +863,20 @@ screens.define_action_button({
     'widget': AttendeeButton,
     'condition': function(){
         return this.pos.config.pos_event_id;
+    },
+});
+
+gui.Gui.prototype.screen_classes.filter(function(el) {
+    return el.name === 'clientlist';
+})[0].widget.include({
+    display_client_details: function(visibility, partner, clickpos){
+        var self = this;
+        this._super(visibility, partner, clickpos)
+        if(visibility === 'show'){
+            this.$('.client-details:not(.edit) .client-name').off().on('click', function(e){
+                self.pos.open_record_in_backend('res.partner', partner.id);
+            });
+        }
     },
 });
 
