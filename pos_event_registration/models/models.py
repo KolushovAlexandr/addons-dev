@@ -91,7 +91,7 @@ class PosOrder(models.Model):
     @api.model
     def _process_order(self, pos_order):
         order = super(PosOrder, self)._process_order(pos_order)
-        if order.config_id.pos_event_id and order.partner_id:
+        if order.config_id.pos_event_id and order.partner_id and order.lines.mapped('product_id.event_ticket_ids'):
             attendee = self.env['event.registration'].create({
                 'event_id': order.config_id.pos_event_id.id,
                 'partner_id': order.partner_id.id,
