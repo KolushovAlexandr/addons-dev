@@ -36,7 +36,7 @@ class PosOrderLineButton(models.Model):
                                   help="Stop the timer and remove from the kitchen", defaul=False)
 
 
-class PosOrderLineState(models.Model):
+class PosOrderTag(models.Model):
     _name = "pos.order.tag"
     _order = "priority, technical_name"
 
