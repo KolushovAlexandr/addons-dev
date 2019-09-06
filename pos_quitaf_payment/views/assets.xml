@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--Copyright 2019 Kolushov Alexandr <https://it-projects.info/team/KolushovAlexandr>
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl.html).-->
+<odoo>
+    <template id="assets_backend" name="pos_quitaf_payment assets" inherit_id="point_of_sale.assets">
+        <xpath expr="." position="inside">
+            <script type="text/javascript" src="/pos_quitaf_payment/static/src/js/pos_quitaf.js"></script>
+        </xpath>
+        <xpath expr="//link[@id='pos-stylesheet']" position="after">
+          <link rel="stylesheet" href="/pos_qr_scan/static/src/css/pos.css"/>
+        </xpath>
+    </template>
+</odoo>
