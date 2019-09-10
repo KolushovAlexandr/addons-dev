@@ -19,7 +19,7 @@
     "depends": [
         "point_of_sale",
     ],
-    "external_dependencies": {"python": [], "bin": []},
+    "external_dependencies": {"python": ['dicttoxml'], "bin": []},
     "data": [
         "views/assets.xml",
         "views/views.xml",
@@ -27,6 +27,7 @@
     "demo": [
     ],
     "qweb": [
+        "static/src/xml/quitaf_templates.xml"
     ],
 
     "post_load": None,

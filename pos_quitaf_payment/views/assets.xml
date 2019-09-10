@@ -5,9 +5,7 @@
     <template id="assets_backend" name="pos_quitaf_payment assets" inherit_id="point_of_sale.assets">
         <xpath expr="." position="inside">
             <script type="text/javascript" src="/pos_quitaf_payment/static/src/js/pos_quitaf.js"></script>
-        </xpath>
-        <xpath expr="//link[@id='pos-stylesheet']" position="after">
-          <link rel="stylesheet" href="/pos_qr_scan/static/src/css/pos.css"/>
+            <link rel="stylesheet" href="/pos_quitaf_payment/static/src/css/pos.css"/>
         </xpath>
     </template>
 </odoo>

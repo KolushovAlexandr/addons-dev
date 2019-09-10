@@ -4,5 +4,12 @@
 
 <templates id="template" xml:space="preserve">
 
+    <t t-extend="TextInputPopupWidget">
+        <t t-jquery="input" t-operation="replace">
+            <div>
+                <input type='text' t-att-value="widget.options.value || ''"></input>
+            </div>
+        </t>
+    </t>
 
 </templates>
