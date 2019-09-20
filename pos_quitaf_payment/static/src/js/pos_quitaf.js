@@ -52,27 +52,56 @@ odoo.define('pos_quitaf_payment', function(require){
             this.update_payment_line_as_quitaf();
             if (cashregister.journal.quitaf_payment_method) {
                 this.remove_keyboard_handler();
-                return this.gui.show_popup('textinput', {
-                    'title': _t('Phone Number ?'),
-                    confirm: function(data) {
-                        self.quitaf_generate_otp(data);
-                        self.add_keyboard_handler();
-                //        super_function(id);
-                    },
-                    cancel: function () {
-                        self.add_keyboard_handler();
-                    },
-                });
+                return self.generate_otp({});
                 //this.quitaf_request()
             }
-
         },
 
-        quitaf_generate_otp: function(data) {
+        generate_otp: function(data) {
+            var self = this;
+            this.remove_keyboard_handler();
+            return this.gui.show_popup('textinput', {
+                'title': _t('Phone Number ?'),
+                confirm: function(data) {
+                    self.add_keyboard_handler();
+                    return self.quitaf_request_generate_otp(data);
+                },
+                cancel: function () {
+                    self.add_keyboard_handler();
+                },
+            });
+        },
+
+        quitaf_request_generate_otp: function(data) {
+            var self = this;
             return session.rpc('/quitaf/generate_otp', {vals: data}).then(function(result) {
-                console.log(result)
+                return self.redeem_points(data);
             }, function(unused, e) {
                 console.log(unused, e)
+            });
+        },
+
+        redeem_points: function (data) {
+            var self = this;
+            this.remove_keyboard_handler();
+            return self.gui.show_popup('textinput', {
+                'title': _t('PIN ?'),
+                confirm: function(data) {
+                    self.add_keyboard_handler();
+                    return self.quitaf_request_redeem_points(data);
+                },
+                cancel: function () {
+                    self.add_keyboard_handler();
+                },
+            });
+        },
+
+        quitaf_request_redeem_points: function(data) {
+            var self = this;
+            return session.rpc('/quitaf/redeem_points', {vals: data}).then(function(result) {
+                console.log(result);
+            }, function(unused, e) {
+                console.log(unused, e);
             });
         },
 
