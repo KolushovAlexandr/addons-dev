@@ -4,125 +4,127 @@
 from odoo import http
 from datetime import datetime, timedelta
 from zeep import Client
+import uuid
+from odoo.http import request
+from zeep.transports import Transport
+
+# Key	pos_quitaf_payment.language_code	Value	en-US
+# Key	pos_quitaf_payment.terminal	        Value	11010000
+# Key	pos_quitaf_payment.branch	        Value	11010000
+# Key	pos_quitaf_payment.wsdl	            Value	http://78.93.37.230:9799/RedemptionLiteIntegrationService?wsdl
 
 
 class Quitaf(http.Controller):
 
     @http.route('/quitaf/redeem_points', type="json", auth="user")
-    def quitaf_generate_otp(self, vals):
+    def quitaf_redeem_points(self, vals):
         # TODO: update vals from POS
+        # import wdb
+        # wdb.set_trace()
         pin = 'pin' in vals and vals['pin'] or ''
         if not pin:
-            return False
+            return {
+                'error': 'PIN was not set',
+            }
+        request_id = 'request_id' in vals and int(vals['request_id']) or ''
+        if not request_id:
+            return {
+                'error': 'RequestId Error. Please repeat generateOTP request',
+            }
+
         amount = 'amount' in vals and vals['amount'] or 0
-        MSISDN = 'MSISDN' in vals and vals['MSISDN'] or '0554925622'
-        data = {
-            'PIN': vals['pin'],
-            'Amount': amount,
-            'RequestDate': (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
-            'MSISDN': MSISDN,
-            'RequestId': '45fa644e-28a6-4d3f-86f5-7224fe4c69d1',
-            'BranchId': 11010000,
-            'TerminalId': 11010000,
-        }
+        request_id = request.env['quitaf.pay'].browse(request_id)
 
-        wsdl = 'http://78.93.37.230:9799/RedemptionLiteIntegrationService?wsdl'
-        client = Client(wsdl)
+        request_id.write({
+            'pin': pin,
+            'amount': amount,
+            'redemption_uuid': uuid.uuid1().hex,
+            'redemption_date_time': (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
+        })
 
-        response = client.service.RedeemQitafPoints(data)
+        # wsdl = 'http://78.93.37.230:9799/RedemptionLiteIntegrationService?wsdl'
+        transport = Transport(timeout=60, operation_timeout=60)
+        client = Client(self.get_quitaf_request_wsdl(), transport=transport)
 
-        import wdb
-        wdb.set_trace()
+        response = client.service.RedeemQitafPoints(
+            request_id.generate_redeem_points_request_data()
+        )
 
-        message = {}
-        if not response:
-            message['error'] = 'There is no response'
-            return message
-        else:
-            message['error'] = response['ResponseCode'] > 0 and response['ResponseText']
-            message['response'] = response
-            return message
+        if not response or response and response['ResponseCode'] == 1:
+            return self.reverse_quitaf_point_redemption(request_id)
+
+        return self.send_back_response(request_id, response)
+
+    @http.route('/quitaf/redeem_points', type="json", auth="user")
+    def reverse_quitaf_point_redemption(self, request_id):
+        # import wdb
+        # wdb.set_trace()
+
+        client = Client(self.get_quitaf_request_wsdl())
+
+        response = client.service.ReverseQitafPointRedemption(
+            request_id.generate_reverse_points_redemption_request_data()
+        )
+
+        return self.send_back_response(request_id, response)
 
     @http.route('/quitaf/generate_otp', type="json", auth="user")
     def quitaf_generate_otp(self, vals):
-        # TODO: update vals from POS
-        MSISDN = 'MSISDN' in vals and vals['MSISDN'] or '0554925622'
+        MSISDN = 'MSISDN' in vals and vals['MSISDN']
+        if not MSISDN:
+            return {
+                'error': 'RequestId Error. Please repeat generateOTP request',
+            }
 
-        data = {
-            'RequestDate': (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
-            'LanguageCode': 'en-US',
+        date_time = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S")
+        quitaf = self.get_quitaf_request_mandatory_data()
+        quitaf_request = request.env['quitaf.pay'].create({
             'MSISDN': MSISDN,
-            'RequestId': '45fa644e-28a6-4d3f-86f5-7224fe4c69d1',
-            'BranchId': 11010000,
-            'TerminalId': 11010000,
-        }
-        wsdl = 'http://78.93.37.230:9799/RedemptionLiteIntegrationService?wsdl'
-        client = Client(wsdl)
+            'request_date': date_time,
+            'branch_ID': quitaf['branch'],
+            'otp_request_id': uuid.uuid1(),
+            'terminal_ID': quitaf['terminal'],
+            'language_code': quitaf['language_code'],
+        })
 
-        response = client.service.GenerateOTP(data)
+        client = Client(quitaf['wsdl'])
 
-        import wdb
-        wdb.set_trace()
+        response = client.service.GenerateOTP(
+            quitaf_request.generate_otp_request_data()
+        )
+        return self.send_back_response(quitaf_request, response)
 
-        message = {}
-        if not response:
-            message['error'] = 'There is no response'
-            return message
+    def send_back_response(self, quitaf_request, response):
+        if response and response['ResponseCode'] == 0:
+            quitaf_request.write({
+                'otp_status': 'success',
+            })
+            return {
+                'response': response,
+                'request_id': quitaf_request.id,
+            }
         else:
-            message['error'] = response['ResponseCode'] > 0 and response['ResponseText']
-            message['response'] = response
-            return message
+            quitaf_request.write({
+                'otp_status': 'fail',
+            })
+            if response:
+                return {
+                    'response': response,
+                    'error': response['ResponseText'],
+                }
+            else:
+                return {
+                    'error': response['ResponseText'],
+                }
 
-        # from odoo.http import request
-        # import json
-        # import requests
-        #
-        # from requests import Session
-        # # from suds.xsd.doctor import Import, ImportDoctor
-        # from zeep.transports import Transport
+    def get_quitaf_request_wsdl(self):
+        return request.env['ir.config_parameter'].sudo().get_param('pos_quitaf_payment.wsdl'),
 
-        # creating  client action
-        # imp = Import('http://www.w3.org/2001/XMLSchema',
-        #              location='http://www.w3.org/2001/XMLSchema.xsd')
-        # imp.filter.add('http://tempuri.org/')
-
-        # import requests
-        # headers = {'content-type': 'application/soap+xml'}
-
-        # headers = {'content-type': 'text/xml'}
-        # body = """
-        # <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-        # xmlns:tem="http://78.93.37.230:9799/IRedemptionLiteIntegrationService/GenerateOTP"
-        # xmlns:red="http://schemas.datacontract.org/2004/07/Redemption.Lite.Integration.Service.Interface">
-        #     <soapenv:Header/>
-        #     <soapenv:Body>
-        #         <tem:GenerateOTPRequest>
-        #             <tem:request>
-        #                 <red:BranchId>%s</red:BranchId>
-        #                 <red:MSISDN>%s</red:MSISDN>
-        #                 <red:RequestDate>%s</red:RequestDate>
-        #                 <red:RequestId>%s</red:RequestId>
-        #                 <red:TerminalId>%s</red:TerminalId>
-        #                 <red:LanguageCode>%s</red:LanguageCode>
-        #             </tem:request>
-        #         </tem:GenerateOTPRequest>
-        #     </soapenv:Body>
-        # </soapenv:Envelope>
-        # """ % ('1', '0562009030', (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"), '001-0001-00011-0001212', '1', 'en-US')
-        #
-        # response = requests.get(url, data=body, headers=headers, verify=False)
-        #
-        # session = Session()
-        # session.verify = False
-        # # session.content-type = 'application/soap+xml'
-        # transport = Transport(session=session)
-        # client = Client(url, transport=transport)
-
-        # body = """
-        #     <red:BranchId>%s</red:BranchId>
-        #     <red:MSISDN>%s</red:MSISDN>
-        #     <red:RequestDate>%s</red:RequestDate>
-        #     <red:RequestId>%s</red:RequestId>
-        #     <red:TerminalId>%s</red:TerminalId>
-        #     <red:LanguageCode>%s</red:LanguageCode>
-        # """ % ('1', '0562009030', (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"), '001-0001-00011-0001212', '1', 'en-US')
+    def get_quitaf_request_mandatory_data(self):
+        config_parameter = request.env['ir.config_parameter'].sudo()
+        return {
+            'wsdl': config_parameter.get_param('pos_quitaf_payment.wsdl'),
+            'branch_ID': config_parameter.get_param('pos_quitaf_payment.branch'),
+            'terminal_ID': config_parameter.get_param('pos_quitaf_payment.terminal'),
+            'language_code': config_parameter.get_param('pos_quitaf_payment.language_code'),
+        }

@@ -63,6 +63,15 @@ odoo.define('pos_quitaf_payment', function(require){
             return this.gui.show_popup('textinput', {
                 'title': _t('Phone Number ?'),
                 confirm: function(data) {
+                //    amount = _.chain(self.pos.get_order().get_paymentlines())
+                //        .filter(function(pl){
+                //            return pl.cashregister.journal.quitaf_payment_method;
+                //        }).map().reduce(function(memo + num){
+                //            return memo + num
+                //        })
+                    data = {
+                        MSISDN: data,
+                    }
                     self.add_keyboard_handler();
                     return self.quitaf_request_generate_otp(data);
                 },
@@ -75,25 +84,69 @@ odoo.define('pos_quitaf_payment', function(require){
         quitaf_request_generate_otp: function(data) {
             var self = this;
             return session.rpc('/quitaf/generate_otp', {vals: data}).then(function(result) {
-                return self.redeem_points(data);
+                if (result.error) {
+                    return self.gui.show_popup('alert', {
+                        title: _t('Request Failed'),
+                        body: result.response,
+                    });
+                }
+                console.log(result);
+                self.pos.get_order().quitaf_payment = {
+                    payment_request: result.request_id,
+                    MSISDN: data.MSISDN,
+                }
             }, function(unused, e) {
                 console.log(unused, e)
             });
         },
 
-        redeem_points: function (data) {
+        check_quitaf_paymentlines: function() {
+            return _.filter(this.pos.get_order().get_paymentlines(), function(pl){
+                return pl.cashregister.journal.quitaf_payment_method;
+            });
+        },
+
+        validate_order: function(force_validation) {
+            var super_function = _.bind(this._super, this);
+            var qf_pl = this.check_quitaf_paymentlines()
+            if (qf_pl) {
+                var amount = _.chain(qf_pl)
+                .map(function(pl){
+                    return pl.amount;
+                })
+                .reduce(function(memo, num){
+                    return memo + num
+                }).value();
+                return this.redeem_points(amount).then(function(result) {
+                    console.log(result);
+                    super_function(force_validation);
+                }, function(result) {
+                    console.log(result);
+                });
+            }
+            this._super(force_validation);
+        },
+
+        redeem_points: function (amount) {
+            var  done = new $.Deferred();
             var self = this;
             this.remove_keyboard_handler();
-            return self.gui.show_popup('textinput', {
+            self.gui.show_popup('textinput', {
                 'title': _t('PIN ?'),
                 confirm: function(data) {
                     self.add_keyboard_handler();
-                    return self.quitaf_request_redeem_points(data);
+                    done = self.quitaf_request_redeem_points({
+                        'pin': data,
+                        'amount': amount,
+                        'request_id': self.pos.get_order().quitaf_payment.payment_request,
+                    });
                 },
                 cancel: function () {
                     self.add_keyboard_handler();
+                    done.reject()
                 },
             });
+            return done;
         },
 
         quitaf_request_redeem_points: function(data) {
@@ -106,13 +159,13 @@ odoo.define('pos_quitaf_payment', function(require){
         },
 
         add_keyboard_handler: function () {
-            window.document.body.addEventListener('keypress', this.keyboard_handler);
-            window.document.body.addEventListener('keydown', this.keyboard_keydown_handler);
+            $('body').keypress(this.keyboard_handler);
+            $('body').keydown(this.keyboard_keydown_handler);
         },
 
         remove_keyboard_handler: function () {
-            window.document.body.removeEventListener('keypress', this.keyboard_handler);
-            window.document.body.removeEventListener('keydown', this.keyboard_keydown_handler);
+            $('body').off('keypress', this.keyboard_handler);
+            $('body').off('keydown', this.keyboard_keydown_handler);
         },
 
     });
