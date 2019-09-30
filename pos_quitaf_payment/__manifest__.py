@@ -19,7 +19,7 @@
     "depends": [
         "point_of_sale",
     ],
-    "external_dependencies": {"python": [], "bin": []},
+    "external_dependencies": {"python": ["zeep"], "bin": []},
     "data": [
         "views/assets.xml",
         "views/views.xml",
