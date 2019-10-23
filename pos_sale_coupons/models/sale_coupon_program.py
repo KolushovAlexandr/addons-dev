@@ -1,3 +1,7 @@
+# Copyright 2019 Gabbasov Dinar <https://it-projects.info/team/GabbasovDinar>
+# Copyright 2019 Kolushov Alexandr <https://it-projects.info/team/KolushovAlexandr>
+# License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
+
 from odoo import fields, models, api, _
 
 
@@ -14,6 +18,8 @@ class SaleCouponProgram(models.Model):
                                                    help="Force sale the coupons before consumption"
                                                         "(for POS only)")
     pos_order_count = fields.Integer(compute='_compute_pos_order_count')
+    is_code_storage_program = fields.Boolean('Code Storage Program')
+    parented_storage_program = fields.Many2one('sale.coupon.program', 'Program Parent')
 
     @api.depends('coupon_ids.pos_order_id')
     def _compute_order_count(self):
@@ -32,6 +38,21 @@ class SaleCouponProgram(models.Model):
             'domain': [('id', 'in', orders.ids)]
         }
 
+    def action_updated_coupon_program(self):
+        print('\n we`re in action_updated_coupon_program \n ')
+        message = {'channel': CHANNEL, 'coupon_program_data': self.read()}
+        self.env['pos.config'].send_to_all_poses(CHANNEL, message)
+
+    @api.model
+    def create(self, vals):
+        program = super(SaleCouponProgram, self).create(vals)
+        if not vals.get('discount_line_product_id', False):
+            program.discount_line_product_id.write({
+                'sale_ok': True,
+                'available_in_pos': True
+            })
+        return program
+
 
 class SaleCoupon(models.Model):
     _inherit = 'sale.coupon'
@@ -44,5 +65,5 @@ class SaleCoupon(models.Model):
                                         help="The POS order on which the coupon is sold")
 
     def action_updated_coupon(self):
-        message = {'channel': CHANNEL, 'data': self.read(['code', 'expiration_date', 'state', 'partner_id', 'pos_order_id', 'pos_discount_line_product_id', 'sold_via_order_id', 'program_id'])}
-        self.env['pos.config'].search([])._send_to_channel(CHANNEL, message)
+        message = {'channel': CHANNEL, 'coupon_data': self.read(['code', 'expiration_date', 'state', 'partner_id', 'pos_order_id', 'pos_discount_line_product_id', 'sold_via_order_id', 'program_id'])}
+        self.env['pos.config'].send_to_all_poses(CHANNEL, message)
